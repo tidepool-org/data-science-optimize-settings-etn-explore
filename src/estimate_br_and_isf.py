@@ -69,7 +69,9 @@ dotenv_path = find_dotenv()
 # load up the entries as environment variables
 load_dotenv(dotenv_path)
 
+# %% CONSTANTS
 EPS = sys.float_info.epsilon
+MGDL_PER_MMOLL = 18.01559
 
 
 # %% GLOBAL FUNCTIONS
@@ -238,7 +240,6 @@ def flattenJson(df, doNotFlattenList):
             )
 
     df = pd.concat([df, newDataFrame, holdData], axis=1)
-
     df.sort_index(axis=1, inplace=True)
 
     return df
@@ -280,7 +281,7 @@ def tslimCalibrationFix(df):
             # if reading is > 30 then it is in the wrong units
             if df["payload.calibration_reading"].min() > 30:
                 df.loc[payloadCalReadingIndex, "value"] = (
-                    df[tandemDataIndex & payloadCalReadingIndex]["payload.calibration_reading"] / 18.01559
+                    df[tandemDataIndex & payloadCalReadingIndex]["payload.calibration_reading"] / MGDL_PER_MMOLL
                 )
             else:
                 df.loc[payloadCalReadingIndex, "value"] = df[tandemDataIndex & payloadCalReadingIndex][
@@ -288,6 +289,7 @@ def tslimCalibrationFix(df):
                 ]
     else:
         nTandemAndPayloadCalReadings = 0
+
     return df, nTandemAndPayloadCalReadings
 
 
@@ -310,7 +312,7 @@ def removeCgmDuplicates(df, timeCriterion):
 
 
 def mmolL_to_mgdL(mmolL):
-    return mmolL * 18.01559
+    return mmolL * MGDL_PER_MMOLL
 
 
 def clean_data(df):
