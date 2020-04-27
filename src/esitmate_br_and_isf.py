@@ -24,6 +24,7 @@ CHANGE LOG:
 """
 
 # %% REQUIRED LIBRARIES
+import os
 import sys
 import requests
 import json
@@ -36,10 +37,35 @@ from scipy.optimize import curve_fit, brute, fmin
 import plotly.graph_objs as go
 from plotly.offline import plot
 import plotly.express as px
+import subprocess
 
-import os
 from dotenv import load_dotenv, find_dotenv
 
+# %% TIDEPOOL API
+if not os.path.exists("donor-data-pipeline"):
+    process = subprocess.Popen(
+        [
+            "git",
+            "clone",
+            "-b",
+            "jam/tidepool-api-improvements",
+            "--single-branch",
+            "https://github.com/tidepool-org/donor-data-pipeline.git",
+            "donor-data-pipeline",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    output, errors = process.communicate()
+    output = output.decode("utf-8")
+    errors = errors.decode("utf-8")
+
+sys.path.append(os.path.join("donor-data-pipeline", "src"))
+import get_single_tidepool_dataset  # noqa: E402
+
+
+# %% LOAD IN LOCAL ENV FILE (IF IT EXISTS)
 # find .env automatically by walking up directories until it's found
 dotenv_path = find_dotenv()
 
@@ -139,102 +165,6 @@ def round_time(
         )
 
     return df
-
-
-def get_data_from_api(
-    email=np.nan, password=np.nan, weeks_of_data=4, userid_of_shared_user=np.nan,
-):
-    if pd.isnull(email):
-        email = input("Enter the email address of your Tidepool account:\n")
-
-    if pd.isnull(password):
-        if "bigdata" in email[:7]:
-            password = os.environ.get("BIGDATA__PASSWORD")
-        else:
-            password = getpass.getpass("Enter the password of your Tidepool account:\n")
-
-    print("\nGetting the last %d weeks of data..." % weeks_of_data)
-
-    df = pd.DataFrame()
-    url1 = "https://api.tidepool.org/auth/login"
-    url3 = "https://api.tidepool.org/auth/logout"
-
-    myResponse = requests.post(url1, auth=(email, password))
-
-    if myResponse.ok:
-        xtoken = myResponse.headers["x-tidepool-session-token"]
-
-        if pd.isnull(userid_of_shared_user):
-            userid = json.loads(myResponse.content.decode())["userid"]
-        else:
-            userid = userid_of_shared_user
-
-        endDate = dt.datetime.now()
-
-        if weeks_of_data > 52:
-            years_of_data = int(np.floor(weeks_of_data / 52))
-            for years in range(0, years_of_data + 1):
-                startDate = endDate - pd.Timedelta(365, unit="d")
-                print(years, startDate, endDate)
-                url2 = (
-                    "https://api.tidepool.org/data/"
-                    + userid
-                    + "?endDate="
-                    + endDate.strftime("%Y-%m-%d")
-                    + "T23:59:59.000Z&startDate="
-                    + startDate.strftime("%Y-%m-%d")
-                    + "T00:00:00.000Z"
-                )
-
-                headers = {
-                    "x-tidepool-session-token": xtoken,
-                    "Content-Type": "application/json",
-                }
-
-                myResponse2 = requests.get(url2, headers=headers)
-                if myResponse2.ok:
-
-                    usersData = json.loads(myResponse2.content.decode())
-                    tempDF = pd.DataFrame(usersData)
-                    df = pd.concat([df, tempDF], ignore_index=True)
-
-                else:
-                    print("ERROR in year ", years, myResponse2.status_code)
-
-                endDate = startDate - pd.Timedelta(1, unit="d")
-
-        else:
-            startDate = endDate - pd.Timedelta(weeks_of_data * 7, unit="d")
-            url2 = (
-                "https://api.tidepool.org/data/"
-                + userid
-                + "?endDate="
-                + endDate.strftime("%Y-%m-%d")
-                + "T23:59:59.000Z&startDate="
-                + startDate.strftime("%Y-%m-%d")
-                + "T00:00:00.000Z"
-            )
-
-            headers = {
-                "x-tidepool-session-token": xtoken,
-                "Content-Type": "application/json",
-            }
-
-            myResponse2 = requests.get(url2, headers=headers)
-            if myResponse2.ok:
-                usersData = json.loads(myResponse2.content.decode())
-                df = pd.DataFrame(usersData)
-            else:
-                print("ERROR in getting data ", myResponse2.status_code)
-    else:
-        print("ERROR in getting token ", myResponse.status_code)
-        myResponse2 = np.nan
-
-    myResponse3 = requests.post(url3, auth=(email, password))
-
-    responses = [myResponse, myResponse2, myResponse3]
-
-    return df, responses
 
 
 def convert_to_local_time(utc_time, current_timezone):
@@ -495,6 +425,7 @@ def clean_data(df):
     # smooth cgm data
 
     # Use centered rolling average over 15 minute time period,  ± 7 points
+    print("smoothing data using a 120 minute centered window")
     contig_cgm["mg_dL_smooth"] = contig_cgm["mg_dL"].rolling(window=120, min_periods=1, center=True).mean()
 
     # sort descendingly
@@ -1821,12 +1752,29 @@ else:
 
 date_data_pulled = dt.datetime.now().strftime("%Y-%d-%mT%H-%M")
 
-data, responses = get_data_from_api(weeks_of_data=weeks_of_data, userid_of_shared_user=userid_of_shared_user)
+# data, responses = get_data_from_api(weeks_of_data=weeks_of_data, userid_of_shared_user=userid_of_shared_user)
+
+# Get dataset from API
+email = input("Enter the email address of your Tidepool account:\n")
+if "bigdata" in email[:7]:
+    password = os.environ.get("BIGDATA__PASSWORD")
+else:
+    password = getpass.getpass("Enter the password of your Tidepool account:\n")
+
+print("\nGetting the last %d weeks of data..." % weeks_of_data)
+
+data, dataset_userid = get_single_tidepool_dataset.get_dataset(
+    weeks_of_data=weeks_of_data,
+    userid_of_shared_user=userid_of_shared_user,
+    email=email,
+    password=password,
+    return_raw_json=False,
+)
 
 print(len(data), "rows of data have been downloaded")
 
 if pd.isna(userid_of_shared_user):
-    userID = responses[0].json()["userid"]
+    userID = dataset_userid
 else:
     userID = userid_of_shared_user
 
