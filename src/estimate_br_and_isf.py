@@ -26,8 +26,6 @@ CHANGE LOG:
 # %% REQUIRED LIBRARIES
 import os
 import sys
-import requests
-import json
 import getpass
 import numpy as np
 import pandas as pd
@@ -38,7 +36,6 @@ import plotly.graph_objs as go
 from plotly.offline import plot
 import plotly.express as px
 import subprocess
-
 from dotenv import load_dotenv, find_dotenv
 
 # %% TIDEPOOL API
