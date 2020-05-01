@@ -353,20 +353,20 @@ def clean_data(df):
     # CLEAN df
     # remove negative durations
     flat_data["duration"] = flat_data["duration"].astype(float)
-    clean_data, nNegativeDurations = removeNegativeDurations(flat_data)
+    cleaned_data, nNegativeDurations = removeNegativeDurations(flat_data)
     metadata["nNegativeDurations"] = nNegativeDurations
 
     # get rid of cgm values too low/high (< 38 & > 402 mg/dL)
-    clean_data, nInvalidCgmValues = removeInvalidCgmValues(clean_data)
+    cleaned_data, nInvalidCgmValues = removeInvalidCgmValues(cleaned_data)
     metadata["nInvalidCgmValues"] = nInvalidCgmValues
 
     # Tslim calibration bug fix
-    clean_data, nTandemAndPayloadCalReadings = tslimCalibrationFix(clean_data)
+    cleaned_data, nTandemAndPayloadCalReadings = tslimCalibrationFix(cleaned_data)
     metadata["nTandemAndPayloadCalReadings"] = nTandemAndPayloadCalReadings
 
     # round all df to the nearest 1 minutes
-    clean_data = round_time(
-        clean_data,
+    cleaned_data = round_time(
+        cleaned_data,
         timeIntervalMinutes=1,
         timeField="localTime",
         roundedTimeFieldName="roundedLocalTime",
@@ -374,11 +374,11 @@ def clean_data(df):
         verbose=False,
     )
 
-    print("after cleaning there are", len(clean_data), "rows of data")
+    print("after cleaning there are", len(cleaned_data), "rows of data")
 
     # GET CGM DATA
     # group data by type
-    groupedData = clean_data.groupby(by="type")
+    groupedData = cleaned_data.groupby(by="type")
 
     # filter by cgm and sort by uploadTime
     cgmData = groupedData.get_group("cbg").dropna(axis=1, how="all")
@@ -452,7 +452,7 @@ def clean_data(df):
     # per minute.
     # query data, drop null columns, and sort by time
 
-    basal_data = clean_data[clean_data.type == "basal"].copy().dropna(axis=1, how="all")
+    basal_data = cleaned_data[cleaned_data.type == "basal"].copy().dropna(axis=1, how="all")
 
     basal_data.sort_values("localTime", ascending=False, inplace=True)
 
@@ -533,7 +533,7 @@ def clean_data(df):
     sbr, nDups = removeDuplicates(sbr, "roundedLocalTime")
 
     # process the bolus data
-    bolus_data = clean_data[clean_data.type == "bolus"].dropna(axis=1, how="all")
+    bolus_data = cleaned_data[cleaned_data.type == "bolus"].dropna(axis=1, how="all")
 
     for i in bolus_data.index:
         bolus_data.loc[i, "bolusDeliveryReason"] = bolus_data.loc[i, "payload"]["HKInsulinDeliveryReason"]
@@ -564,7 +564,7 @@ def clean_data(df):
 
     # GET CARB DATA
 
-    carb_data = clean_data[clean_data.type == "food"].dropna(axis=1, how="all")
+    carb_data = cleaned_data[cleaned_data.type == "food"].dropna(axis=1, how="all")
     for i in carb_data.index:
         carb_data.loc[i, "grams"] = carb_data.loc[i, "nutrition.carbohydrate"]["net"]
         for k in carb_data.loc[i, "payload"].keys():
@@ -1757,6 +1757,8 @@ date_data_pulled = dt.datetime.now().strftime("%Y-%d-%mT%H-%M")
 email = input("Enter the email address of your Tidepool account:\n")
 if "bigdata" in email[:7]:
     password = os.environ.get("BIGDATA__PASSWORD")
+elif "edward.t" in email:
+    password = os.environ.get("ED_TIDEPOOL")
 else:
     password = getpass.getpass("Enter the password of your Tidepool account:\n")
 
