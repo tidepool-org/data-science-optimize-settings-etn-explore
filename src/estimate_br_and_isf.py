@@ -1560,7 +1560,7 @@ def make_evidence_plots(
     return fig
 
 
-def make_screen_results_fig(df):
+def make_screen_results_fig(df, title="None"):
     df.sort_values("rmse", inplace=True)
     df["opacity"] = df["rmse"].min() / df["rmse"]
     df["opacity"].fillna(np.min([0.15, df["opacity"].min() * 0.9]), inplace=True)
@@ -1578,12 +1578,6 @@ def make_screen_results_fig(df):
         hover_data=["isf", "br", "rmse"],
         size="opacity",
         size_max=15,
-    )
-
-    title = "Preliminary search over ISF Range: 15 to 400 for userid {}<br>".format(
-        userID
-    ) + "Refining search to ISF Range: {} to {} mg/dL/U (shaded)".format(
-        int(refined_isf_slice_min), int(refined_isf_slice_max)
     )
 
     layout = go.Layout(
@@ -1830,6 +1824,7 @@ for i, b in zip(isf_slice, br_slice_1800):
     t_results = pd.DataFrame([[rule, insulin_model, t_rmse, i, b]], columns=output_cols)
     screen_1800_results = pd.concat([screen_1800_results, t_results], ignore_index=True)
 
+
 # %% STEP 2: combine results and define a refined search space
 rule = "Current (ISF={}, BR={})".format(int(current_isf), np.round(current_br, 2))
 current_rmse = get_rmse_given_isf_br(current_isf, current_br, combined, snippet_threshold, insulin_model)
@@ -1841,6 +1836,14 @@ refined_isf_slice_max = int(screen_results.loc[screen_results["rmse"].notnull(),
 refined_isf_slice = np.arange(refined_isf_slice_min, refined_isf_slice_max + 1)
 refined_br_slice = np.round((((refined_isf_slice / 494.45) ** (-1 / 0.7768)) / 24) / 0.025) * 0.025
 refined_br_slice_1800 = np.round((0.625 * 60 / refined_isf_slice) / 0.025) * 0.025
+
+# prepare screening results figure
+title = "Preliminary search over ISF Range: 15 to 400 for userid {}<br>".format(
+    userID
+) + "Refining search to ISF Range: {} to {} mg/dL/U (shaded)".format(
+    int(refined_isf_slice_min), int(refined_isf_slice_max)
+)
+screening_results_fig = make_screen_results_fig(screen_results, title=title)
 
 # refined results
 lane_results = pd.DataFrame(columns=output_cols)
@@ -1904,6 +1907,7 @@ title = (
     + "Current Nudged by 10%: ISF={}, BR={}".format(nudge_current_isf, nudge_current_br)
 )
 
+refined_results_fig = make_refined_results_fig(refined_results, title=title)
 
 # %% make evidence plots
 just_insulin_df["dG_current"] = get_delta_bg_from_isf_br_loop_insulin_curve(
@@ -1923,9 +1927,10 @@ evidence_fig = make_evidence_plots(
 )
 
 # %% MAKE PLOTS
+
 # plot screening (preliminary) results
-plot(make_screen_results_fig(screen_results))
-# plot screening (refined) results
-plot(make_refined_results_fig(refined_results, title=title))
+plot(screening_results_fig)
+# plot refined results
+plot(refined_results_fig)
 # plot evidence
 plot(evidence_fig)
