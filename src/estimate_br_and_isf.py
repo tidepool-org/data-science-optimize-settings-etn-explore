@@ -40,6 +40,8 @@ from dotenv import load_dotenv, find_dotenv
 
 # %% TIDEPOOL API
 if not os.path.exists("donor-data-pipeline"):
+    # TODO: this part should no longer be needed because repo is loaded in requirements.txt
+    print("cloning api repo")
     process = subprocess.Popen(
         [
             "git",
