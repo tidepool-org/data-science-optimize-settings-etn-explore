@@ -38,38 +38,6 @@ import plotly.express as px
 import subprocess
 from dotenv import load_dotenv, find_dotenv
 
-# %% TIDEPOOL API
-if not os.path.exists("donor-data-pipeline"):
-    # TODO: this part should no longer be needed because repo is loaded in requirements.txt
-    print("cloning api repo")
-    process = subprocess.Popen(
-        [
-            "git",
-            "clone",
-            "-b",
-            "jam/tidepool-api-improvements",
-            "--single-branch",
-            "https://github.com/tidepool-org/donor-data-pipeline.git",
-            "donor-data-pipeline",
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-
-    output, errors = process.communicate()
-    output = output.decode("utf-8")
-    errors = errors.decode("utf-8")
-
-sys.path.append(os.path.join("donor-data-pipeline", "src"))
-import get_single_tidepool_dataset  # noqa: E402
-
-
-# %% LOAD IN LOCAL ENV FILE (IF IT EXISTS)
-# find .env automatically by walking up directories until it's found
-dotenv_path = find_dotenv()
-
-# load up the entries as environment variables
-load_dotenv(dotenv_path)
 
 # %% CONSTANTS
 EPS = sys.float_info.epsilon
@@ -1741,6 +1709,38 @@ def make_refined_results_fig(
 
 
 def get_user_data():
+    # %% TIDEPOOL API
+    if not os.path.exists("donor-data-pipeline"):
+        # TODO: this part should no longer be needed because repo is loaded in requirements.txt
+        print("cloning api repo")
+        process = subprocess.Popen(
+            [
+                "git",
+                "clone",
+                "-b",
+                "jam/tidepool-api-improvements",
+                "--single-branch",
+                "https://github.com/tidepool-org/donor-data-pipeline.git",
+                "donor-data-pipeline",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        output, errors = process.communicate()
+        output = output.decode("utf-8")
+        errors = errors.decode("utf-8")
+
+    sys.path.append(os.path.join("donor-data-pipeline", "src"))
+    import get_single_tidepool_dataset  # noqa: E402
+
+    # %% LOAD IN LOCAL ENV FILE (IF IT EXISTS)
+    # find .env automatically by walking up directories until it's found
+    dotenv_path = find_dotenv()
+
+    # load up the entries as environment variables
+    load_dotenv(dotenv_path)
+
     # %% DOWNLOAD & PREPARE DATA
     userid_of_shared_user = input("You acknowledge that this is exploratory (Press Return):\n")
 
@@ -1964,12 +1964,13 @@ def main_calculation(data, user_settings_list):
 
 
 # %% MAKE PLOTS
-data, user_settings_list = get_user_data()
-screening_fig, refined_fig, data_fig = main_calculation(data, user_settings_list)
+if __name__ == "__main__":
+    data, user_settings_list = get_user_data()
+    screening_fig, refined_fig, data_fig = main_calculation(data, user_settings_list)
 
-# plot screening (preliminary) results
-plot(screening_fig)
-# plot refined results
-plot(refined_fig)
-# plot data (AKA evidence)
-plot(data_fig)
+    # plot screening (preliminary) results
+    plot(screening_fig)
+    # plot refined results
+    plot(refined_fig)
+    # plot data (AKA evidence)
+    plot(data_fig)
