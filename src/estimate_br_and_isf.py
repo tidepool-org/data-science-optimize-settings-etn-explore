@@ -150,7 +150,7 @@ def remove_timezone(local_timezoneAware):
 
 
 def add_uploadDateTime(df):
-    if "upload" in data.type.unique():
+    if "upload" in df.type.unique():
         uploadTimes = pd.DataFrame(df[df.type == "upload"].groupby("uploadId").time.describe()["top"])
     else:
         uploadTimes = pd.DataFrame(columns=["top"])
@@ -1750,7 +1750,7 @@ def get_user_data():
     weeks_of_data = np.int(input("How many weeks of data do you want to analyze? (2-4 is recommended)\n"))
     current_isf = float(input("What is your current ISF while sleeping?\n"))
     current_br = float(input("What is your current Basal Rate while sleeping?\n"))
-    ins_model_num = float(input("What Loop Insulin Model are you using?\n1=Adult, 2=Child, 3=Fiasp"))
+    ins_model_num = float(input("What Loop Insulin Model are you using?\n1=Adult, 2=Child, 3=Fiasp\n"))
     if ins_model_num == 2:
         current_insulin_model = "adult"
     elif ins_model_num == 3:
