@@ -1284,7 +1284,7 @@ def get_delta_bg_from_isf_br_loop_insulin_curve(insulin_effect_array, isf, br):
 
 
 def find_just_insulin_snippets(
-    df, field="justInsulin_adult", min_snippet_minutes=120,
+    df, weeks_of_data, field="justInsulin_adult", min_snippet_minutes=120,
 ):
     """
     Return array of snippet starts and sizes that meet input conditions.
@@ -1345,7 +1345,7 @@ def find_just_insulin_snippets(
     return just_insulin_snippets, avg_snippets_per_week
 
 
-def get_insulin_snippets_given_isf_br(df, isf, br, snippet_threshold=1, insulin_model="adult"):
+def get_insulin_snippets_given_isf_br(df, isf, br, weeks_of_data, snippet_threshold=1, insulin_model="adult"):
     df["dBg_non_insulin_" + insulin_model] = df["deltaBg_smooth"] - get_delta_bg_from_isf_br_loop_insulin_curve(
         df["dG_insulin_loop_" + insulin_model].values, isf, br
     )
@@ -1363,14 +1363,16 @@ def get_insulin_snippets_given_isf_br(df, isf, br, snippet_threshold=1, insulin_
     )
 
     # get consecutive snippets where there is at least 2 hours of
-    just_insulin_snippets, avg_snippets_per_week = find_just_insulin_snippets(df, field="justInsulin_" + insulin_model)
+    just_insulin_snippets, avg_snippets_per_week = find_just_insulin_snippets(
+        df, weeks_of_data, field="justInsulin_" + insulin_model
+    )
 
     return just_insulin_snippets, avg_snippets_per_week, df
 
 
-def get_rmse_given_isf_br(isf, br, df, snippet_threshold, insulin_model):
+def get_rmse_given_isf_br(isf, br, df, snippet_threshold, insulin_model, weeks_of_data):
     (insulin_snippets, avg_snippets_per_week, _,) = get_insulin_snippets_given_isf_br(
-        df, isf, br, snippet_threshold=snippet_threshold, insulin_model=insulin_model,
+        df, isf, br, weeks_of_data, snippet_threshold=snippet_threshold, insulin_model=insulin_model,
     )
 
     if avg_snippets_per_week >= 3:
@@ -1560,7 +1562,7 @@ def make_evidence_plots(
     return fig
 
 
-def make_screen_results_fig(df, title="None"):
+def make_screen_results_fig(df, isf_slice, br_slice, refined_isf_slice, refined_br_slice, title="None"):
     df.sort_values("rmse", inplace=True)
     df["opacity"] = df["rmse"].min() / df["rmse"]
     df["opacity"].fillna(np.min([0.15, df["opacity"].min() * 0.9]), inplace=True)
@@ -1652,7 +1654,9 @@ def get_nudged_results(current_isf, current_br, optimal_isf, optimal_br):
     return nudge_current_isf, nudge_current_br
 
 
-def make_refined_results_fig(df, title=""):
+def make_refined_results_fig(
+    df, safety_df, isf_slice, br_slice, nudge_current_isf, nudge_current_br, current_isf, current_br, title=""
+):
     nudge_current_isf = df.loc[df["Legend"].str.contains("Nudged"), "isf"].values[0]
     nudge_current_br = df.loc[df["Legend"].str.contains("Nudged"), "br"].values[0]
     df.sort_values("rmse", inplace=True)
@@ -1736,201 +1740,236 @@ def make_refined_results_fig(df, title=""):
     return fig
 
 
-# %% DOWNLOAD & PREPARE DATA
-userid_of_shared_user = input("You acknowledge that this is exploratory (Press Return):\n")
+def get_user_data():
+    # %% DOWNLOAD & PREPARE DATA
+    userid_of_shared_user = input("You acknowledge that this is exploratory (Press Return):\n")
 
-if userid_of_shared_user in "":
-    userid_of_shared_user = np.nan
+    if userid_of_shared_user in "":
+        userid_of_shared_user = np.nan
 
-weeks_of_data = np.int(input("How many weeks of data do you want to analyze? (2-4 is recommended)\n"))
+    weeks_of_data = np.int(input("How many weeks of data do you want to analyze? (2-4 is recommended)\n"))
+    current_isf = float(input("What is your current ISF while sleeping?\n"))
+    current_br = float(input("What is your current Basal Rate while sleeping?\n"))
+    ins_model_num = float(input("What Loop Insulin Model are you using?\n1=Adult, 2=Child, 3=Fiasp"))
+    if ins_model_num == 2:
+        current_insulin_model = "adult"
+    elif ins_model_num == 3:
+        current_insulin_model = "fiasp"
+    elif ins_model_num == 1:
+        current_insulin_model = "adult"
+    else:
+        print("we'll assume you meant Adult")
+        current_insulin_model = "adult"
+    # TODO: add in some checks to make sure those values are correct
+    # date_data_pulled = dt.datetime.now().strftime("%Y-%d-%mT%H-%M")
+    # data, responses = get_data_from_api(weeks_of_data=weeks_of_data, userid_of_shared_user=userid_of_shared_user)
 
-current_isf = float(input("What is your current ISF while sleeping?\n"))
-current_br = float(input("What is your current Basal Rate while sleeping?\n"))
-ins_model_num = float(input("What Loop Insulin Model are you using?\n1=Adult, 2=Child, 3=Fiasp"))
-if ins_model_num == 2:
-    current_insulin_model = "adult"
-elif ins_model_num == 3:
-    current_insulin_model = "fiasp"
-elif ins_model_num == 1:
-    current_insulin_model = "adult"
-else:
-    print("we'll assume you meant Adult")
-    current_insulin_model = "adult"
-# TODO: add in some checks to make sure those values are correct
+    # Get dataset from API
+    email = input("Enter the email address of your Tidepool account:\n")
+    if "bigdata" in email[:7]:
+        password = os.environ.get("BIGDATA__PASSWORD")
+    elif "edward.t" in email:
+        password = os.environ.get("ED_TIDEPOOL")
+    else:
+        password = getpass.getpass("Enter the password of your Tidepool account:\n")
 
-date_data_pulled = dt.datetime.now().strftime("%Y-%d-%mT%H-%M")
+    print("\nGetting the last %d weeks of data..." % weeks_of_data)
 
-# data, responses = get_data_from_api(weeks_of_data=weeks_of_data, userid_of_shared_user=userid_of_shared_user)
-
-# Get dataset from API
-email = input("Enter the email address of your Tidepool account:\n")
-if "bigdata" in email[:7]:
-    password = os.environ.get("BIGDATA__PASSWORD")
-elif "edward.t" in email:
-    password = os.environ.get("ED_TIDEPOOL")
-else:
-    password = getpass.getpass("Enter the password of your Tidepool account:\n")
-
-print("\nGetting the last %d weeks of data..." % weeks_of_data)
-
-data, dataset_userid = get_single_tidepool_dataset.get_dataset(
-    weeks_of_data=weeks_of_data,
-    userid_of_shared_user=userid_of_shared_user,
-    email=email,
-    password=password,
-    return_raw_json=False,
-)
-
-print(len(data), "rows of data have been downloaded")
-
-if pd.isna(userid_of_shared_user):
-    userID = dataset_userid
-else:
-    userID = userid_of_shared_user
-
-# %% CLEAN DATA
-combined = clean_data(data)
-
-# CALCULATE THE 3 LOOP INSULIN MODELS
-combined = calc_loop_insulin_models(combined)
-
-# ADD COLUMNS THAT INDICATE WHETHER EACH POINT IN THE TIME SERIES
-# HAS CGM DATA AND CARBS WITHIN THE LAST 5 HOURS
-combined = prep_insulin_snippets(combined)
-
-# %% STEP 1: get a general sense of where solution is located using Lane criteria
-snippet_threshold = 0.25
-insulin_model = current_insulin_model
-
-output_cols = ["Legend", "insulin_model", "rmse", "isf", "br"]
-screen_lane_results = pd.DataFrame(columns=output_cols)
-screen_1800_results = pd.DataFrame(columns=output_cols)
-
-# lane's trivariate relationship (put link to spreadsheet here)
-print("searching across ISF Range of 15 to 400...")
-isf_slice = np.append(np.arange(15, 60, 5), np.append(np.arange(60, 120, 10), np.arange(120, 400, 50)),)
-br_slice = np.round((((isf_slice / 494.45) ** (-1 / 0.7768)) / 24) / 0.025) * 0.025
-
-for i, b in zip(isf_slice, br_slice):
-    rule = "Lane's Rule"
-    t_rmse = get_rmse_given_isf_br(i, b, combined, snippet_threshold, insulin_model)
-    t_results = pd.DataFrame([[rule, insulin_model, t_rmse, i, b]], columns=output_cols)
-    screen_lane_results = pd.concat([screen_lane_results, t_results], ignore_index=True)
-
-br_slice_1800 = np.round((0.625 * 60 / isf_slice) / 0.025) * 0.025
-for i, b in zip(isf_slice, br_slice_1800):
-    rule = "1800 Rule"
-    t_rmse = get_rmse_given_isf_br(i, b, combined, snippet_threshold, insulin_model)
-    t_results = pd.DataFrame([[rule, insulin_model, t_rmse, i, b]], columns=output_cols)
-    screen_1800_results = pd.concat([screen_1800_results, t_results], ignore_index=True)
-
-
-# %% STEP 2: combine results and define a refined search space
-rule = "Current (ISF={}, BR={})".format(int(current_isf), np.round(current_br, 2))
-current_rmse = get_rmse_given_isf_br(current_isf, current_br, combined, snippet_threshold, insulin_model)
-current_results = pd.DataFrame([[rule, insulin_model, current_rmse, current_isf, current_br]], columns=output_cols,)
-
-screen_results = pd.concat([screen_lane_results, screen_1800_results, current_results], ignore_index=True,)
-refined_isf_slice_min = int(screen_results.loc[screen_results["rmse"].notnull(), "isf"].min())
-refined_isf_slice_max = int(screen_results.loc[screen_results["rmse"].notnull(), "isf"].max())
-refined_isf_slice = np.arange(refined_isf_slice_min, refined_isf_slice_max + 1)
-refined_br_slice = np.round((((refined_isf_slice / 494.45) ** (-1 / 0.7768)) / 24) / 0.025) * 0.025
-refined_br_slice_1800 = np.round((0.625 * 60 / refined_isf_slice) / 0.025) * 0.025
-
-# prepare screening results figure
-title = "Preliminary search over ISF Range: 15 to 400 for userid {}<br>".format(
-    userID
-) + "Refining search to ISF Range: {} to {} mg/dL/U (shaded)".format(
-    int(refined_isf_slice_min), int(refined_isf_slice_max)
-)
-screening_results_fig = make_screen_results_fig(screen_results, title=title)
-
-# refined results
-lane_results = pd.DataFrame(columns=output_cols)
-rule1800_results = pd.DataFrame(columns=output_cols)
-
-for i, b in zip(refined_isf_slice, refined_br_slice):
-    rule = "Lane's Rule"
-    t_rmse = get_rmse_given_isf_br(i, b, combined, snippet_threshold, insulin_model)
-    t_results = pd.DataFrame([[rule, insulin_model, t_rmse, i, b]], columns=output_cols)
-    lane_results = pd.concat([lane_results, t_results], ignore_index=True)
-
-for i, b in zip(refined_isf_slice, refined_br_slice_1800):
-    rule = "1800 Rule"
-    t_rmse = get_rmse_given_isf_br(i, b, combined, snippet_threshold, insulin_model)
-    t_results = pd.DataFrame([[rule, insulin_model, t_rmse, i, b]], columns=output_cols)
-    rule1800_results = pd.concat([rule1800_results, t_results], ignore_index=True)
-
-refined_results = pd.concat([lane_results, rule1800_results, current_results], ignore_index=True)
-
-opt_indice = refined_results["rmse"].argmin()
-optimal_isf = int(refined_results.loc[opt_indice, "isf"])
-optimal_br = np.round(refined_results.loc[opt_indice, "br"], 2)
-optimal_rmse = refined_results.loc[opt_indice, "rmse"]
-rule = "Optimal (ISF={}, BR={})".format(optimal_isf, optimal_br)
-opt_result = pd.DataFrame([[rule, insulin_model, optimal_rmse, optimal_isf, optimal_br]], columns=output_cols,)
-
-just_insulin_df, avg_snippets_per_week, combined_temp = get_insulin_snippets_given_isf_br(
-    combined, optimal_isf, optimal_br, snippet_threshold=snippet_threshold, insulin_model=insulin_model
-)
-
-# calculate safety parameters (i.e., br < optimal_br and isf > optimal_isf is safer)
-optimal_egp = optimal_isf * optimal_br / 60
-safety_df = pd.DataFrame(np.arange(optimal_isf, optimal_isf * 1.5, 1), columns=["isf"])
-safety_df["br"] = optimal_egp * 60 / safety_df["isf"]
-safety_df["Legend"] = "Safety Settings"
-safety_df["insulin_model"] = "Adult"
-
-for s_index in safety_df.index:
-    safety_df.loc[s_index, "rmse"] = get_rmse_given_isf_br(
-        safety_df.loc[s_index, "isf"], safety_df.loc[s_index, "br"], combined, snippet_threshold, insulin_model,
+    data, dataset_userid = get_single_tidepool_dataset.get_dataset(
+        weeks_of_data=weeks_of_data,
+        userid_of_shared_user=userid_of_shared_user,
+        email=email,
+        password=password,
+        return_raw_json=False,
     )
 
-nudge_current_isf, nudge_current_br = get_nudged_results(current_isf, current_br, optimal_isf, optimal_br)
+    print(len(data), "rows of data have been downloaded")
 
-rule = "Nudged 10% (ISF={}, BR={})".format(nudge_current_isf, nudge_current_br)
-nudge_rmse = get_rmse_given_isf_br(nudge_current_isf, nudge_current_br, combined, snippet_threshold, insulin_model)
-nudge_results = pd.DataFrame(
-    [[rule, insulin_model, nudge_rmse, nudge_current_isf, nudge_current_br]], columns=output_cols
-)
+    if pd.isna(userid_of_shared_user):
+        userID = dataset_userid
+    else:
+        userID = userid_of_shared_user
+
+    user_settings_list = [userID, weeks_of_data, current_isf, current_br, current_insulin_model]
+    return data, user_settings_list
 
 
-refined_results = pd.concat([refined_results, opt_result, nudge_results], ignore_index=True)
-# nudge_current_isf = refined_results.loc[refined_results["Legend"].str.contains("Nudged"), "isf"].values[0]
-# nudge_current_br = refined_results.loc[refined_results["Legend"].str.contains("Nudged"), "br"].values[0]
+def main_calculation(data, user_settings_list):
+    # expand user_settings_list
+    userID, weeks_of_data, current_isf, current_br, current_insulin_model = user_settings_list
 
-title = (
-    "{} insulin snippets over {} weeks of {}'s data, <br>".format(
-        int(avg_snippets_per_week * weeks_of_data), weeks_of_data, userID,
+    # %% CLEAN DATA
+    combined = clean_data(data)
+
+    # CALCULATE THE 3 LOOP INSULIN MODELS
+    combined = calc_loop_insulin_models(combined)
+
+    # ADD COLUMNS THAT INDICATE WHETHER EACH POINT IN THE TIME SERIES
+    # HAS CGM DATA AND CARBS WITHIN THE LAST 5 HOURS
+    combined = prep_insulin_snippets(combined)
+
+    # %% STEP 1: get a general sense of where solution is located using Lane criteria
+    snippet_threshold = 0.25
+    insulin_model = current_insulin_model
+
+    output_cols = ["Legend", "insulin_model", "rmse", "isf", "br"]
+    screen_lane_results = pd.DataFrame(columns=output_cols)
+    screen_1800_results = pd.DataFrame(columns=output_cols)
+
+    # lane's trivariate relationship (put link to spreadsheet here)
+    print("searching across ISF Range of 15 to 400...")
+    isf_slice = np.append(np.arange(15, 60, 5), np.append(np.arange(60, 120, 10), np.arange(120, 400, 50)),)
+    br_slice = np.round((((isf_slice / 494.45) ** (-1 / 0.7768)) / 24) / 0.025) * 0.025
+
+    for i, b in zip(isf_slice, br_slice):
+        rule = "Lane's Rule"
+        t_rmse = get_rmse_given_isf_br(i, b, combined, snippet_threshold, insulin_model, weeks_of_data)
+        t_results = pd.DataFrame([[rule, insulin_model, t_rmse, i, b]], columns=output_cols)
+        screen_lane_results = pd.concat([screen_lane_results, t_results], ignore_index=True)
+
+    br_slice_1800 = np.round((0.625 * 60 / isf_slice) / 0.025) * 0.025
+    for i, b in zip(isf_slice, br_slice_1800):
+        rule = "1800 Rule"
+        t_rmse = get_rmse_given_isf_br(i, b, combined, snippet_threshold, insulin_model, weeks_of_data)
+        t_results = pd.DataFrame([[rule, insulin_model, t_rmse, i, b]], columns=output_cols)
+        screen_1800_results = pd.concat([screen_1800_results, t_results], ignore_index=True)
+
+    # %% STEP 2: combine results and define a refined search space
+    rule = "Current (ISF={}, BR={})".format(int(current_isf), np.round(current_br, 2))
+    current_rmse = get_rmse_given_isf_br(
+        current_isf, current_br, combined, snippet_threshold, insulin_model, weeks_of_data
     )
-    + "Optimal: ISF={}, BR={} ".format(optimal_isf, optimal_br,)
-    + "Current Nudged by 10%: ISF={}, BR={}".format(nudge_current_isf, nudge_current_br)
-)
+    current_results = pd.DataFrame([[rule, insulin_model, current_rmse, current_isf, current_br]], columns=output_cols,)
 
-refined_results_fig = make_refined_results_fig(refined_results, title=title)
+    screen_results = pd.concat([screen_lane_results, screen_1800_results, current_results], ignore_index=True,)
+    refined_isf_slice_min = int(screen_results.loc[screen_results["rmse"].notnull(), "isf"].min())
+    refined_isf_slice_max = int(screen_results.loc[screen_results["rmse"].notnull(), "isf"].max())
+    refined_isf_slice = np.arange(refined_isf_slice_min, refined_isf_slice_max + 1)
+    refined_br_slice = np.round((((refined_isf_slice / 494.45) ** (-1 / 0.7768)) / 24) / 0.025) * 0.025
+    refined_br_slice_1800 = np.round((0.625 * 60 / refined_isf_slice) / 0.025) * 0.025
 
-# %% make evidence plots
-just_insulin_df["dG_current"] = get_delta_bg_from_isf_br_loop_insulin_curve(
-    just_insulin_df["dG_insulin_loop_" + insulin_model].values, current_isf, current_br,
-)
+    # prepare screening results figure
+    title = "Preliminary search over ISF Range: 15 to 400 for userid {}<br>".format(
+        userID
+    ) + "Refining search to ISF Range: {} to {} mg/dL/U (shaded)".format(
+        int(refined_isf_slice_min), int(refined_isf_slice_max)
+    )
+    screening_results_fig = make_screen_results_fig(
+        screen_results, isf_slice, br_slice, refined_isf_slice, refined_br_slice, title=title
+    )
 
-just_insulin_df["dG_optimal"] = get_delta_bg_from_isf_br_loop_insulin_curve(
-    just_insulin_df["dG_insulin_loop_" + insulin_model].values, optimal_isf, optimal_br,
-)
+    # refined results
+    lane_results = pd.DataFrame(columns=output_cols)
+    rule1800_results = pd.DataFrame(columns=output_cols)
 
-just_insulin_df["dG_nudge"] = get_delta_bg_from_isf_br_loop_insulin_curve(
-    just_insulin_df["dG_insulin_loop_" + insulin_model].values, nudge_current_isf, nudge_current_br,
-)
+    for i, b in zip(refined_isf_slice, refined_br_slice):
+        rule = "Lane's Rule"
+        t_rmse = get_rmse_given_isf_br(i, b, combined, snippet_threshold, insulin_model, weeks_of_data)
+        t_results = pd.DataFrame([[rule, insulin_model, t_rmse, i, b]], columns=output_cols)
+        lane_results = pd.concat([lane_results, t_results], ignore_index=True)
 
-evidence_fig = make_evidence_plots(
-    combined_temp, just_insulin_df, snippet_threshold, insulin_model, days_to_show=7, title=title,
-)
+    for i, b in zip(refined_isf_slice, refined_br_slice_1800):
+        rule = "1800 Rule"
+        t_rmse = get_rmse_given_isf_br(i, b, combined, snippet_threshold, insulin_model, weeks_of_data)
+        t_results = pd.DataFrame([[rule, insulin_model, t_rmse, i, b]], columns=output_cols)
+        rule1800_results = pd.concat([rule1800_results, t_results], ignore_index=True)
+
+    refined_results = pd.concat([lane_results, rule1800_results, current_results], ignore_index=True)
+
+    opt_indice = refined_results["rmse"].argmin()
+    optimal_isf = int(refined_results.loc[opt_indice, "isf"])
+    optimal_br = np.round(refined_results.loc[opt_indice, "br"], 2)
+    optimal_rmse = refined_results.loc[opt_indice, "rmse"]
+    rule = "Optimal (ISF={}, BR={})".format(optimal_isf, optimal_br)
+    opt_result = pd.DataFrame([[rule, insulin_model, optimal_rmse, optimal_isf, optimal_br]], columns=output_cols,)
+
+    just_insulin_df, avg_snippets_per_week, combined_temp = get_insulin_snippets_given_isf_br(
+        combined,
+        optimal_isf,
+        optimal_br,
+        weeks_of_data,
+        snippet_threshold=snippet_threshold,
+        insulin_model=insulin_model,
+    )
+
+    # calculate safety parameters (i.e., br < optimal_br and isf > optimal_isf is safer)
+    optimal_egp = optimal_isf * optimal_br / 60
+    safety_df = pd.DataFrame(np.arange(optimal_isf, optimal_isf * 1.5, 1), columns=["isf"])
+    safety_df["br"] = optimal_egp * 60 / safety_df["isf"]
+    safety_df["Legend"] = "Safety Settings"
+    safety_df["insulin_model"] = "Adult"
+
+    for s_index in safety_df.index:
+        safety_df.loc[s_index, "rmse"] = get_rmse_given_isf_br(
+            safety_df.loc[s_index, "isf"],
+            safety_df.loc[s_index, "br"],
+            combined,
+            snippet_threshold,
+            insulin_model,
+            weeks_of_data,
+        )
+
+    nudge_current_isf, nudge_current_br = get_nudged_results(current_isf, current_br, optimal_isf, optimal_br)
+
+    rule = "Nudged 10% (ISF={}, BR={})".format(nudge_current_isf, nudge_current_br)
+    nudge_rmse = get_rmse_given_isf_br(
+        nudge_current_isf, nudge_current_br, combined, snippet_threshold, insulin_model, weeks_of_data
+    )
+    nudge_results = pd.DataFrame(
+        [[rule, insulin_model, nudge_rmse, nudge_current_isf, nudge_current_br]], columns=output_cols
+    )
+
+    refined_results = pd.concat([refined_results, opt_result, nudge_results], ignore_index=True)
+    # nudge_current_isf = refined_results.loc[refined_results["Legend"].str.contains("Nudged"), "isf"].values[0]
+    # nudge_current_br = refined_results.loc[refined_results["Legend"].str.contains("Nudged"), "br"].values[0]
+
+    title = (
+        "{} insulin snippets over {} weeks of {}'s data, <br>".format(
+            int(avg_snippets_per_week * weeks_of_data), weeks_of_data, userID,
+        )
+        + "Optimal: ISF={}, BR={} ".format(optimal_isf, optimal_br,)
+        + "Current Nudged by 10%: ISF={}, BR={}".format(nudge_current_isf, nudge_current_br)
+    )
+
+    refined_results_fig = make_refined_results_fig(
+        refined_results,
+        safety_df,
+        isf_slice,
+        br_slice,
+        nudge_current_isf,
+        nudge_current_br,
+        current_isf,
+        current_br,
+        title=title,
+    )
+
+    # %% make evidence plots
+    just_insulin_df["dG_current"] = get_delta_bg_from_isf_br_loop_insulin_curve(
+        just_insulin_df["dG_insulin_loop_" + insulin_model].values, current_isf, current_br,
+    )
+
+    just_insulin_df["dG_optimal"] = get_delta_bg_from_isf_br_loop_insulin_curve(
+        just_insulin_df["dG_insulin_loop_" + insulin_model].values, optimal_isf, optimal_br,
+    )
+
+    just_insulin_df["dG_nudge"] = get_delta_bg_from_isf_br_loop_insulin_curve(
+        just_insulin_df["dG_insulin_loop_" + insulin_model].values, nudge_current_isf, nudge_current_br,
+    )
+
+    evidence_fig = make_evidence_plots(
+        combined_temp, just_insulin_df, snippet_threshold, insulin_model, days_to_show=7, title=title,
+    )
+
+    return screening_results_fig, refined_results_fig, evidence_fig
+
 
 # %% MAKE PLOTS
+data, user_settings_list = get_user_data()
+screening_fig, refined_fig, data_fig = main_calculation(data, user_settings_list)
 
 # plot screening (preliminary) results
-plot(screening_results_fig)
+plot(screening_fig)
 # plot refined results
-plot(refined_results_fig)
-# plot evidence
-plot(evidence_fig)
+plot(refined_fig)
+# plot data (AKA evidence)
+plot(data_fig)
