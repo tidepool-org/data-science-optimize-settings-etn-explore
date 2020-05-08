@@ -1254,6 +1254,19 @@ def estimate_insulin_curve_params_fixed_isf_br_brute(params_to_estimate, knowns)
 
 
 def prep_insulin_snippets(df):
+    """
+    Adds columns to input dataframe with info on cgm data is present, and whether carbs were consumed
+    over the last 5 hours.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    df : pd.DataFrame
+
+    """
     # only take cases where all of the cgm data and deltaBg is present
     df["hasCgm"] = df["deltaBg"].notnull()
 
@@ -1787,7 +1800,8 @@ combined = clean_data(data)
 # CALCULATE THE 3 LOOP INSULIN MODELS
 combined = calc_loop_insulin_models(combined)
 
-# RUN BRUTE FORCE METHOD OVER MESH GRID OF ISFs and BASAL RATES
+# ADD COLUMNS THAT INDICATE WHETHER EACH POINT IN THE TIME SERIES
+# HAS CGM DATA AND CARBS WITHIN THE LAST 5 HOURS
 combined = prep_insulin_snippets(combined)
 
 # %% STEP 1: get a general sense of where solution is located using Lane criteria
@@ -1827,9 +1841,6 @@ refined_isf_slice_max = int(screen_results.loc[screen_results["rmse"].notnull(),
 refined_isf_slice = np.arange(refined_isf_slice_min, refined_isf_slice_max + 1)
 refined_br_slice = np.round((((refined_isf_slice / 494.45) ** (-1 / 0.7768)) / 24) / 0.025) * 0.025
 refined_br_slice_1800 = np.round((0.625 * 60 / refined_isf_slice) / 0.025) * 0.025
-
-# plot screening (preliminary) results
-plot(make_screen_results_fig(screen_results))
 
 # refined results
 lane_results = pd.DataFrame(columns=output_cols)
@@ -1893,8 +1904,6 @@ title = (
     + "Current Nudged by 10%: ISF={}, BR={}".format(nudge_current_isf, nudge_current_br)
 )
 
-plot(make_refined_results_fig(refined_results, title=title))
-
 
 # %% make evidence plots
 just_insulin_df["dG_current"] = get_delta_bg_from_isf_br_loop_insulin_curve(
@@ -1912,4 +1921,11 @@ just_insulin_df["dG_nudge"] = get_delta_bg_from_isf_br_loop_insulin_curve(
 evidence_fig = make_evidence_plots(
     combined_temp, just_insulin_df, snippet_threshold, insulin_model, days_to_show=7, title=title,
 )
+
+# %% MAKE PLOTS
+# plot screening (preliminary) results
+plot(make_screen_results_fig(screen_results))
+# plot screening (refined) results
+plot(make_refined_results_fig(refined_results, title=title))
+# plot evidence
 plot(evidence_fig)
