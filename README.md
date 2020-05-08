@@ -1,29 +1,62 @@
-# Tidepool Data Science Project Template
-## Creating a new repository from this template
-You can create a new repository from this template manually by going [here](https://github.com/tidepool-org/data-science-project-template/generate).
+# Estimate Basal Rate and ISF using Tidepool Donor Data
+Author: Ed Nykaza
 
-Step by step directions from github are located [here](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-from-a-template).
+Created: 2020-03-13
 
-### Instructions for updating this readme are as follows:
-* Everything in ( ) are instructions.
-* Everything in [ ] should be changed.
-* (Delete everything above the [Project Name])
+Last Updated: 2020-05-01
 
-# [Project Name]
+## Project Disclaimer: [WIP] Exploratory
+This is work is exploratory and under development.
+It is not intended to be used or distributed as a medical device.
 
-#### -- Project Status: [Active, On-Hold, Completed]
-#### -- Project Disclaimer: This work is [Exploratory, Pre-Production, For-Production]
+This is the first of several estimators I intend to build to help with determining Loop Settings.
+Here is the general model that is being solved using bounded or constrained optimization:
 
-## Project Objective
-The purpose of this project is to [___].
+    dBG[t,v] = EGP[t] - insulinEffect[t] + carbEffect[t] + activityEffect[t] + timingEffects[t] + valueEffects[t,v]
 
-## Definition of Done
-This phase of the project will be done when [___].
+Though, for this version of the code, only the first two factors are being solved for:
 
-## Project Description
-(Add a short paragraph with some details, Why?, How?, Link to Jira and/or Confluence)
-In order to learn [___], we did [___].
+    dBG[t,v] = EGP[t] - insulinEffect[t]
+    dBG[t,v] = ISF(basalRate/60 - insulinEffect[t])
 
+## Key Assumptions
+* Data comes from Tidepool using API (user is prompted for credentials)
+* Estimator uses one of the three DIY Loop Insulin Models (user is prompted)
+* User will be asked for settings, but the current settings are NOT used in the estimate
+* All data is rounded to the nearest minute
+* All gaps of cgm data < 2 hours are linearly interpolated
+* All cgm data, and bg velocity data are smoothed using a 120-minute centered rolling average
+* Estimator looks for just-insulin-snippets > 120 minutes according to the following criteria:
+    * only searches over the time period between 12am and 12pm local time
+    * all cgm data is present over the length of the snippet (120 minutes)
+    * the snippet starts > 5 hours after the last carb event
+    * the smoothed bg velocity is does not exceed +/- 0.25 mg/dL/min over the entire snippet
+
+## Estimator Process
+Plug in a given insulin sensitivity factor (ISF) and basal Rate (BR) in the following bg velocity equation:
+
+    dBG[t,v] = ISF(basalRate/60 - insulinEffect[t]),
+
+and calculate the root mean squared error (RMSE) between the
+smoothed bg velocity and the estimated bg velocity (dBG). Only use the just-insulin-snippets (defined above)
+1. Quickly search over the ISF Range of 15 to 400 to get into the general ballpark (Figure 1)
+2. Do a narrower and finer search over ISF range (Figure 2)
+3. Provide a visual of all of the data used to make the estimate (Figure 3)
+
+## Next Actions
+* Calculate metrics that indicate whether the PWD should consider making settings changes
+    * time in range(s), hypo and hyper episodes
+    * stability of the system, which could include the loop algorithm or the user
+* Show how the settings fit changes over time
+* Refine Safety Criteria
+* Consider other Rules beyond the 1800 Rule and Lane's Rule
+* Solve for different insulin curves
+    * optimize for the best DIY Loop Insulin Model
+    * solve for other insulin curves
+* Use the non-insulin bg velocity as a way to pick out missed carb and activity events
+* Solve for carb amounts, carb activity curves
+
+---
 ### Technologies (Update this list)
 * Python (99% of the time)
 * [Anaconda](https://www.anaconda.com/) for our virtual environments
@@ -57,12 +90,6 @@ that was created from the environmental.yml file (hint: environment name is at t
 10. If you did not setup your global git-template to automatically install the pre-commit githooks, then
 run `pre-commit install` to enable the githooks.
 11. Run `deactivate` to stop the environment.
-
-## Getting Started with this project
-1. Raw Data is being kept [here](Repo folder containing raw data) within this repo.
-(If using offline data mention that and how they may obtain the data from the froup)
-2. Data processing/transformation scripts are being kept [here](Repo folder containing data processing scripts/notebooks)
-3. (Finishing filling out this list)
 
 ## Contributing Guide
 1. All are welcome to contribute to this project.

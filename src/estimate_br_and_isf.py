@@ -336,7 +336,7 @@ def clean_data(df):
         df["timezone"] = manual_timezone
 
     # estimate local time (simple method)
-    # TODO: use the latest estiamte local time code
+    # TODO: use the latest estimate local time code
     df.sort_values(by="time", ascending=False, inplace=True)
     df["timezone"].fillna(method="ffill", inplace=True)
     df["timezone"].fillna(method="bfill", inplace=True)
@@ -423,7 +423,7 @@ def clean_data(df):
 
     # smooth cgm data
 
-    # Use centered rolling average over 15 minute time period,  ± 7 points
+    # Use centered rolling average over 120 minute time period
     print("smoothing data using a 120 minute centered window")
     contig_cgm["mg_dL_smooth"] = contig_cgm["mg_dL"].rolling(window=120, min_periods=1, center=True).mean()
 
