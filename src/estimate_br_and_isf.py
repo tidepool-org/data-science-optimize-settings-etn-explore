@@ -1623,7 +1623,7 @@ def get_nudged_results(current_isf, current_br, optimal_isf, optimal_br):
 
 
 def make_refined_results_fig(
-    df, safety_df, isf_slice, br_slice, nudge_current_isf, nudge_current_br, current_isf, current_br, title=""
+    df, safety_df, isf_slice, br_slice, nudge_current_isf, nudge_current_br, current_isf, current_br, title="None"
 ):
     nudge_current_isf = df.loc[df["Legend"].str.contains("Nudged"), "isf"].values[0]
     nudge_current_br = df.loc[df["Legend"].str.contains("Nudged"), "br"].values[0]
@@ -1854,6 +1854,8 @@ def main_calculation(data, user_settings_list):
     ) + "Refining search to ISF Range: {} to {} mg/dL/U (shaded)".format(
         int(refined_isf_slice_min), int(refined_isf_slice_max)
     )
+
+    print("making screening figure...")
     screening_results_fig = make_screen_results_fig(
         screen_results, isf_slice, br_slice, refined_isf_slice, refined_br_slice, title=title
     )
