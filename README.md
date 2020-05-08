@@ -39,9 +39,16 @@ Plug in a given insulin sensitivity factor (ISF) and basal Rate (BR) in the foll
 
 and calculate the root mean squared error (RMSE) between the
 smoothed bg velocity and the estimated bg velocity (dBG). Only use the just-insulin-snippets (defined above)
-1. Quickly search over the ISF Range of 15 to 400 to get into the general ballpark (Figure 1)
-2. Do a narrower and finer search over ISF range (Figure 2)
-3. Provide a visual of all of the data used to make the estimate (Figure 3)
+1. Quickly search over the ISF Range of 15 to 400 to get into the general ballpark (Figure 1):
+
+![](figures/example-preliminary-search.png)
+2. Do a narrower and finer search over ISF range (Figure 2):
+
+![](figures/example-refinded-search.png)
+3. Provide a visual of all of the data used to make the estimate (Figure 3):
+
+![](figures/example-evidence-plot.png)
+
 
 ## Next Actions
 * Calculate metrics that indicate whether the PWD should consider making settings changes
@@ -104,8 +111,6 @@ or `project_data_figure-2020-04-25-v-0-1-0.png`.
 
 NOTE: PHI data is never stored in github and the .gitignore file includes this requirement as well.
 
-## Featured Notebooks/Analysis/Deliverables
-* [Colab Notebook/Figures/Website](link)
 
 ## Tidepool Data Science Team
 |Name (with github link)    |  [Tidepool Slack](https://tidepoolorg.slack.com/)   |
