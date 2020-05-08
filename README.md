@@ -16,8 +16,8 @@ Here is the general model that is being solved using bounded or constrained opti
 
 Though, for this version of the code, only the first two factors are being solved for:
 
-    dBG[t,v] = EGP[t] - insulinEffect[t]
-    dBG[t,v] = ISF(basalRate/60 - insulinEffect[t])
+    dBG[t] = EGP[t] - insulinEffect[t]
+    dBG[t] = ISF(basalRate/60 - insulinEffect[t])
 
 ## Key Assumptions
 * Data comes from Tidepool using API (user is prompted for credentials)
@@ -35,10 +35,10 @@ Though, for this version of the code, only the first two factors are being solve
 ## Estimator Process
 Plug in a given insulin sensitivity factor (ISF) and basal Rate (BR) in the following bg velocity equation:
 
-    dBG[t,v] = ISF(basalRate/60 - insulinEffect[t]),
+    dBG[t] = ISF(basalRate/60 - insulinEffect[t]),
 
-and calculate the root mean squared error (RMSE) between the
-smoothed bg velocity and the estimated bg velocity (dBG). Only use the just-insulin-snippets (defined above)
+and calculate the root mean squared error (RMSE) between the smoothed bg velocity and 
+the estimated bg velocity (dBG). Only use the just-insulin-snippets as defined above.
 
 1. Quickly search over the ISF Range of 15 to 400 to get into the general ballpark (Figure 1):
 
